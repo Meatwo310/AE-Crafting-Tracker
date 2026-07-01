@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import net.minecraft.world.SimpleContainer;
+
 import javax.annotation.Nullable;
 
 import com.mojang.logging.LogUtils;
@@ -19,6 +21,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -27,8 +30,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 import org.chatterjay.crafting_tracker.api.CraftStatus;
 import org.chatterjay.crafting_tracker.config.CTConfig;
+import org.chatterjay.crafting_tracker.item.NetworkLocatorTool;
 import org.chatterjay.crafting_tracker.network.payloads.S2CCraftHighlightData;
 import org.chatterjay.crafting_tracker.network.payloads.S2CCraftHighlightData.HighlightEntry;
+import org.chatterjay.crafting_tracker.network.payloads.S2CLocatorHighlights;
 import org.slf4j.Logger;
 
 import appeng.api.crafting.IPatternDetails;
@@ -59,6 +64,7 @@ public class CraftTracker {
     private static final Set<UUID> disabledPlayers = new HashSet<>();
     private static final Map<BlockPos, TrackerEntry> entries = new HashMap<>();
     private static final Map<BlockPos, Boolean> prevProviderBusy = new HashMap<>();
+    private static final Set<UUID> prevLocatorPlayers = new HashSet<>();
     private static int scanCounter;
 
     static final int TYPE_ITEM = 0;
@@ -219,6 +225,58 @@ public class CraftTracker {
                 LOGGER.info("Tracking {} entries, sending {} highlights to {}", entries.size(), highlightEntries.size(), player.getName().getString());
             }
             PacketDistributor.sendToPlayer(player, new S2CCraftHighlightData(highlightEntries));
+        }
+
+        // Phase 4: Locator scans — every 40 ticks for players with bound locator tools
+        if (scanCounter % 40 == 0) {
+            Set<UUID> currentLocatorPlayers = new HashSet<>();
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                if (!isEnabledFor(player.getUUID())) continue;
+                ItemStack locator = findLocator(player);
+                if (locator.isEmpty()) continue;
+                if (!NetworkLocatorTool.isBound(locator)) continue;
+
+                ResourceLocation boundDim = NetworkLocatorTool.getBoundDimension(locator);
+                if (boundDim == null) continue;
+                if (!player.level().dimension().location().equals(boundDim)) continue;
+
+                BlockPos boundPos = NetworkLocatorTool.getBoundPos(locator);
+                if (boundPos == null) continue;
+
+                var reg = player.level().registryAccess();
+                List<ItemStack> filters = NetworkLocatorTool.getFilters(locator, reg);
+                if (filters.isEmpty()) continue;
+
+                // Track this player for drop detection
+                currentLocatorPlayers.add(player.getUUID());
+
+                // Build a temporary container from the saved filters
+                SimpleContainer filterContainer = new SimpleContainer(9);
+                for (int i = 0; i < Math.min(filters.size(), 9); i++) {
+                    filterContainer.setItem(i, filters.get(i));
+                }
+
+                Map<BlockPos, List<S2CLocatorHighlights.LocatorHit>> results =
+                        NetworkLocatorScanner.scan((ServerLevel) player.level(), boundPos, filterContainer, player);
+
+                if (LOGGER.isDebugEnabled() || scanCounter % 200 == 0) {
+                    LOGGER.info("[LocatorTick] Scan for {}: {} matches", player.getName().getString(), results.size());
+                }
+                PacketDistributor.sendToPlayer(player, new S2CLocatorHighlights(results));
+            }
+
+            // Clear highlights for players who no longer have the tool
+            for (UUID uuid : prevLocatorPlayers) {
+                if (!currentLocatorPlayers.contains(uuid)) {
+                    ServerPlayer player = server.getPlayerList().getPlayer(uuid);
+                    if (player != null) {
+                        LOGGER.info("[LocatorTick] Clearing highlights for {} (tool dropped)", player.getName().getString());
+                        PacketDistributor.sendToPlayer(player, new S2CLocatorHighlights(Map.of()));
+                    }
+                }
+            }
+            prevLocatorPlayers.clear();
+            prevLocatorPlayers.addAll(currentLocatorPlayers);
         }
     }
 
@@ -504,6 +562,24 @@ public class CraftTracker {
             LOGGER.info("isProviderNeededByCraftingSystem: exception at {}: {}", be.getBlockPos(), e.getMessage());
         }
         return false;
+    }
+
+    /**
+     * Find a bound NetworkLocatorTool in the player's inventory.
+     * Checks main hand, offhand, then hotbar, then rest of inventory.
+     */
+    private static ItemStack findLocator(ServerPlayer player) {
+        // Check main hand first (most common)
+        ItemStack mainHand = player.getMainHandItem();
+        if (mainHand.getItem() instanceof NetworkLocatorTool) return mainHand;
+        // Check offhand
+        ItemStack offHand = player.getOffhandItem();
+        if (offHand.getItem() instanceof NetworkLocatorTool) return offHand;
+        // Check rest of inventory
+        for (ItemStack stack : player.getInventory().items) {
+            if (stack.getItem() instanceof NetworkLocatorTool) return stack;
+        }
+        return ItemStack.EMPTY;
     }
 
     private static @Nullable List<OutputItem> getOutputInfo(BlockEntity be, @Nullable List<OutputItem> prevOutputs) {

@@ -2,5 +2,15 @@
   "chat.crafting_tracker.enabled": "Crafting tracker highlight enabled",
   "chat.crafting_tracker.disabled": "Crafting tracker highlight disabled",
   "chat.crafting_tracker.status_enabled": "Crafting tracker: enabled",
-  "chat.crafting_tracker.status_disabled": "Crafting tracker: disabled"
+  "chat.crafting_tracker.status_disabled": "Crafting tracker: disabled",
+
+  "item.crafting_tracker.network_locator": "Network Locator",
+  "msg.crafting_tracker.locator.bound": "Bound to AE network at %s",
+  "msg.crafting_tracker.locator.bound_to": "Bound to AE network at %s",
+  "msg.crafting_tracker.locator.not_bound": "Not bound to any AE network",
+  "msg.crafting_tracker.locator.not_ae": "Not an AE network block",
+  "msg.crafting_tracker.locator.unbound": "Unbound from AE network",
+  "msg.crafting_tracker.locator.locked": "Tool is locked — sneak+right-click in air to unlock",
+  "msg.crafting_tracker.locator.locked_on": "Tool locked — position binding protected",
+  "msg.crafting_tracker.locator.locked_off": "Tool unlocked"
 }

@@ -30,23 +30,15 @@ legacyForge {
     }
 
     runs {
-        client {
-            client()
-            systemProperty 'forge.enabledGameTestNamespaces', mod_id
-        }
+        client { client() }
         server {
             server()
             programArgument '--nogui'
-            systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
         data {
             data()
             gameDirectory = file('run-data')
             programArguments.addAll '--mod', mod_id, '--all', '--output', file('src/generated/resources/').absolutePath, '--existing', file('src/main/resources/').absolutePath
-        }
-        configureEach {
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-            systemProperty 'forge.logging.console.level', 'info'
         }
     }
 
@@ -59,7 +51,6 @@ legacyForge {
 
 sourceSets.main.resources {
     srcDir 'src/generated/resources'
-    exclude '**/*.bbmodel'
 }
 
 configurations {
@@ -71,11 +62,8 @@ configurations {
 }
 
 dependencies {
-    compileOnly "maven.modrinth:ae2:${ae2_version}"
     runtimeOnly "maven.modrinth:ae2:${ae2_version}"
     ciRuntimeMods "maven.modrinth:ae2:${ae2_version}"
-
-    annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 }
 
 tasks.register('collectCiRuntimeMods', Copy) {
@@ -109,15 +97,6 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
 
 sourceSets.main.resources.srcDir generateModMetadata
 legacyForge.ideSyncTask generateModMetadata
-
-mixin {
-    add sourceSets.main, "${mod_id}.refmap.json"
-    config "${mod_id}.mixins.json"
-}
-
-tasks.jar {
-    manifest.attributes('MixinConfigs': "${mod_id}.mixins.json")
-}
 
 publishing {
     publications {

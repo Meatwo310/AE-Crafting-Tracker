@@ -1,43 +1,31 @@
-# AE Crafting Tracker
+# AE Crafting Tracker — Forge 1.20.1 port
 
-[**中文版**](README_ZH.md)
-
-A Minecraft NeoForge 1.21.1 mod that provides real-time visual feedback for AE2 crafting status.
+A forced backport of AE Crafting Tracker for Minecraft 1.20.1, Forge 47.4+, and Applied Energistics 2 15.x.
 
 ## Features
 
-### Pattern Provider Highlighting
-- Automatically detects active Pattern Providers in your AE2 network
-- Color-coded highlights:
-  - 🟢 **Green** — Provider is actively crafting
-  - 🟡 **Yellow** — Provider is stalled (busy but no progress)
-  - 🔴 **Red** — Provider is stuck (locked, output full, or missing ingredients)
-- Shows output item icons above highlighted providers
-- Configurable highlight colors and opacity
+- Highlights busy AE2 pattern providers and changes outline color when a provider remains busy or locked.
+- Adds a Network Locator item with nine ghost filter slots.
+- Binds the locator to an AE2 network by sneak-right-clicking an AE2 block.
+- Scans AE2 network-owned block entities for matching inventories and pattern outputs.
+- Supports dragging EMI ingredients into locator filter slots.
 
-### Network Locator
-- Craftable item that scans AE networks for blocks matching your filter items
-- 9 filter slots in the GUI — drag items from EMI or manually place
-- Bind the locator by shift-clicking on an AE network controller/access point
-- Highlights matching blocks on the network with distance info
-- Works across dimensions (scan only active when in the same dimension as the bound position)
-- Instant network switch detection: clear old highlights and scan new network immediately
-- Instant drop detection: all highlights clear when item is dropped
+## Compatibility notes
 
-### Runtime Mode
-- Enable runtime highlighting via the button in the locator screen
-- Highlights persist even when the locator GUI is closed
-- Toggle on/off freely without affecting your config settings
+The original project targeted NeoForge 1.21.1 and directly integrated several addon internals. This 1.20.1 port deliberately uses only stable AE2 and Forge APIs. Addon-specific pattern-provider adapters, fluid/chemical icon rendering, and multi-output billboard icons were removed to keep the forced backport buildable and testable.
 
-## Dependencies
+## Requirements
 
-- Minecraft 1.21.1
-- NeoForge 21.1+
-- Applied Energistics 2 (AE2) — runtime
+- Minecraft 1.20.1
+- Forge 47.4.20 or newer in the 47.x line
+- Applied Energistics 2 15.x
+- EMI is optional
+
+## Automation
+
+- `Build`: compiles on pushes and pull requests, uploads the jar, and starts a headless Minecraft Forge client through `mc-runtime-test`.
+- `Release`: creates a GitHub Release from a pushed `v*` tag or a manually supplied tag. Version bumping is intentionally not automated.
 
 ## License
 
 GNU LGPL 3.0
-
-### Asset Credits
-- The Network Locator item texture is based on AE2's `network_tool` texture, copyright © Applied Energistics 2.

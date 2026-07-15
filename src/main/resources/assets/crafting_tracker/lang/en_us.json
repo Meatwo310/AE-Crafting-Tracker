@@ -3,7 +3,6 @@
   "chat.crafting_tracker.disabled": "Crafting tracker highlight disabled",
   "chat.crafting_tracker.status_enabled": "Crafting tracker: enabled",
   "chat.crafting_tracker.status_disabled": "Crafting tracker: disabled",
-
   "item.crafting_tracker.network_locator": "Network Locator",
   "msg.crafting_tracker.locator.bound": "Bound to AE network at %s",
   "msg.crafting_tracker.locator.bound_to": "Bound to AE network at %s",
@@ -13,14 +12,11 @@
   "msg.crafting_tracker.locator.locked": "Tool is locked — sneak+right-click in air to unlock",
   "msg.crafting_tracker.locator.locked_on": "Tool locked — position binding protected",
   "msg.crafting_tracker.locator.locked_off": "Tool unlocked",
-
   "button.crafting_tracker.runtime_highlight.on": "Stop",
   "button.crafting_tracker.runtime_highlight.off": "Highlight",
-
   "crafting_tracker.configuration.title": "Crafting Tracker Config",
   "crafting_tracker.configuration.highlight": "Highlight",
   "crafting_tracker.configuration.scan": "Scan",
-
   "crafting_tracker.config.highlight.enabled": "Enabled by Default",
   "crafting_tracker.config.highlight.enabled.tooltip": "Whether crafting highlight is enabled by default for all players",
   "crafting_tracker.config.highlight.stallThresholdSeconds": "Stall Threshold (s)",
@@ -31,9 +27,7 @@
   "crafting_tracker.config.scan.scanIntervalTicks.tooltip": "Ticks between provider scans (20 = 1 second)",
   "crafting_tracker.config.scan.scanRadius": "Scan Radius",
   "crafting_tracker.config.scan.scanRadius.tooltip": "Radius in blocks to scan for pattern providers",
-
   "crafting_tracker.configuration.colors": "Colors",
-
   "crafting_tracker.config.colors.colorActive": "Active Color",
   "crafting_tracker.config.colors.colorActive.tooltip": "Highlight RGB color for ACTIVE providers (decimal, e.g. 5635925 = 0x55FF55 green)",
   "crafting_tracker.config.colors.colorStalled": "Stalled Color",
@@ -45,5 +39,6 @@
   "crafting_tracker.config.colors.fillAlphaOuter": "Fill Opacity (outer)",
   "crafting_tracker.config.colors.fillAlphaOuter.tooltip": "Opacity for outer highlight glow (0=transparent, 255=solid)",
   "crafting_tracker.config.colors.outlineAlpha": "Outline Opacity",
-  "crafting_tracker.config.colors.outlineAlpha.tooltip": "Opacity for highlight outline (0=transparent, 255=solid)"
+  "crafting_tracker.config.colors.outlineAlpha.tooltip": "Opacity for highlight outline (0=transparent, 255=solid)",
+  "itemGroup.crafting_tracker": "Crafting Tracker"
 }

@@ -36,8 +36,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build
-        run: chmod +x gradlew && ./gradlew --no-daemon build
+      - name: Build and resolve runtime-test mods
+        run: chmod +x gradlew && ./gradlew --no-daemon build copyCiRuntimeMods
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
@@ -52,12 +52,7 @@ jobs:
         run: |
           mkdir -p run/mods
           find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' -exec cp {} run/mods/ \;
-          curl --fail --location --retry 3 \
-            --output run/mods/appliedenergistics2-forge-15.4.8.jar \
-            https://maven.appliedenergistics.org/releases/appeng/appliedenergistics2-forge/15.4.8/appliedenergistics2-forge-15.4.8.jar
-          curl --fail --location --retry 3 \
-            --output run/mods/guideme-20.1.7.jar \
-            https://maven.appliedenergistics.org/releases/org/appliedenergistics/guideme/20.1.7/guideme-20.1.7.jar
+          find build/ciRuntimeMods -maxdepth 1 -type f -name '*.jar' -exec cp {} run/mods/ \;
           ls -la run/mods
 
       - name: Minecraft runtime smoke test with AE2

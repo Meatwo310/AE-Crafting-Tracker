@@ -1,43 +1,46 @@
-# AE Crafting Tracker
+# AE Crafting Tracker — Forge 1.20.1 rough port
 
-[**中文版**](README_ZH.md)
+This branch is an unofficial, personal-use-oriented port of Chatterjay's AE Crafting Tracker from NeoForge 1.21.1 to Minecraft 1.20.1 with Forge.
 
-A Minecraft NeoForge 1.21.1 mod that provides real-time visual feedback for AE2 crafting status.
+## What works
 
-## Features
+- Loads on Minecraft 1.20.1 / Forge 47.4.10+
+- Client-side scanning of loaded block entities near the player
+- Reflection-based detection of AE2 Pattern Providers, including providers reachable through AE2 container objects
+- Color-coded provider boxes:
+  - Green: provider reports busy
+  - Yellow: provider has remained busy for at least 5 seconds
+  - Red: provider has remained busy for at least 15 seconds
+- The mod can start without AE2, which keeps CI runtime smoke tests lightweight
 
-### Pattern Provider Highlighting
-- Automatically detects active Pattern Providers in your AE2 network
-- Color-coded highlights:
-  - 🟢 **Green** — Provider is actively crafting
-  - 🟡 **Yellow** — Provider is stalled (busy but no progress)
-  - 🔴 **Red** — Provider is stuck (locked, output full, or missing ingredients)
-- Shows output item icons above highlighted providers
-- Configurable highlight colors and opacity
+## Deliberate limitations
 
-### Network Locator
-- Craftable item that scans AE networks for blocks matching your filter items
-- 9 filter slots in the GUI — drag items from EMI or manually place
-- Bind the locator by shift-clicking on an AE network controller/access point
-- Highlights matching blocks on the network with distance info
-- Works across dimensions (scan only active when in the same dimension as the bound position)
-- Instant network switch detection: clear old highlights and scan new network immediately
-- Instant drop detection: all highlights clear when item is dropped
+This is a forced compatibility port, not a feature-complete backport. The original 1.21.1 implementation remains under `src/main` for reference but is excluded from the 1.20.1 build.
 
-### Runtime Mode
-- Enable runtime highlighting via the button in the locator screen
-- Highlights persist even when the locator GUI is closed
-- Toggle on/off freely without affecting your config settings
+The following original features are not currently ported:
 
-## Dependencies
+- Network Locator item and GUI
+- Output-item billboards
+- Exact AE2 crafting-request matching
+- ExtendedAE / AdvancedAE / Mekanism-specific integrations
+- User-facing configuration screen
 
-- Minecraft 1.21.1
-- NeoForge 21.1+
-- Applied Energistics 2 (AE2) — runtime
+Reflection is used so the project does not compile directly against one exact AE2 1.20.1 build. This improves startup compatibility but means future AE2 internals may require adjustments.
+
+## Build
+
+```bash
+./gradlew build
+```
+
+The distributable jar is written to `build/libs/`. Java 17 is required.
+
+## Automation
+
+- `Build` compiles the mod, uploads the jar, and runs `headlesshq/mc-runtime-test` against Forge 1.20.1.
+- `Release` builds and attaches jars to a GitHub Release when a `v*` tag is pushed or when manually dispatched with a tag name.
+- Version bumping is intentionally manual.
 
 ## License
 
-GNU LGPL 3.0
-
-### Asset Credits
-- The Network Locator item texture is based on AE2's `network_tool` texture, copyright © Applied Energistics 2.
+GNU LGPL 3.0. The original project and attribution remain under the same license.

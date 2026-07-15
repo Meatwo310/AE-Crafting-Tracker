@@ -6,6 +6,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -22,12 +23,12 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.client.event.RegisterMenuScreensEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.chatterjay.craftingtracker.CraftingTracker;
 import org.chatterjay.craftingtracker.config.CTConfig;
@@ -41,13 +42,13 @@ public final class ClientEvents {
     private ClientEvents() {}
 
     public static void bootstrap(IEventBus modBus) {
-        modBus.addListener(ClientEvents::registerScreens);
+        modBus.addListener(ClientEvents::clientSetup);
         ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class,
                 () -> new ConfigScreenHandler.ConfigScreenFactory((minecraft, parent) -> new ConfigScreen(parent)));
     }
 
-    private static void registerScreens(RegisterMenuScreensEvent event) {
-        event.register(CraftingTracker.NETWORK_LOCATOR_MENU.get(), NetworkLocatorScreen::new);
+    private static void clientSetup(FMLClientSetupEvent event) {
+        event.enqueueWork(() -> MenuScreens.register(CraftingTracker.NETWORK_LOCATOR_MENU.get(), NetworkLocatorScreen::new));
     }
 
     @SubscribeEvent

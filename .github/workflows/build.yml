@@ -37,7 +37,18 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build
-        run: chmod +x gradlew && ./gradlew --no-daemon build
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon build 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: error
 
       - name: Upload jar
         uses: actions/upload-artifact@v4

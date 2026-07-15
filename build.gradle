@@ -73,7 +73,9 @@ sourceSets {
 }
 
 repositories {
+    mavenCentral()
     maven { url = 'https://maven.appliedenergistics.org/releases/' }
+    maven { url = 'https://modmaven.dev/artifactory/local-releases/' }
 }
 
 configurations {

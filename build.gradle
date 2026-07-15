@@ -76,8 +76,23 @@ repositories {
     maven { url = 'https://maven.appliedenergistics.org/releases/' }
 }
 
+configurations {
+    ciRuntimeMods {
+        transitive = false
+    }
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Used only by the GitHub Actions runtime smoke test.
+    ciRuntimeMods 'appeng:appliedenergistics2-forge:15.4.8'
+    ciRuntimeMods 'org.appliedenergistics:guideme:20.1.7'
+}
+
+tasks.register('copyCiRuntimeMods', Copy) {
+    from configurations.ciRuntimeMods
+    into layout.buildDirectory.dir('ciRuntimeMods')
 }
 
 tasks.named('processResources', ProcessResources).configure {

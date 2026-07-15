@@ -4,22 +4,20 @@ A forced backport of AE Crafting Tracker for Minecraft 1.20.1, Forge 47.4+, and 
 
 ## Features
 
-- Highlights busy AE2 pattern providers and changes outline color when a provider remains busy or locked.
-- Adds a Network Locator item with nine ghost filter slots.
-- Binds the locator to an AE2 network by sneak-right-clicking an AE2 block.
-- Scans AE2 network-owned block entities for matching inventories and pattern outputs.
-- Supports dragging EMI ingredients into locator filter slots.
+- Highlights active AE2 Pattern Providers in nearby loaded chunks.
+- Uses green outlines while crafting and red outlines when a provider reports a locked state.
+- Adds a Network Locator item that can be bound to a block position by sneak-right-clicking.
+- Uses reflection for AE2 provider state access, avoiding direct coupling to 1.21-only internals and addon implementation classes.
 
 ## Compatibility notes
 
-The original project targeted NeoForge 1.21.1 and directly integrated several addon internals. This 1.20.1 port deliberately uses only stable AE2 and Forge APIs. Addon-specific pattern-provider adapters, fluid/chemical icon rendering, and multi-output billboard icons were removed to keep the forced backport buildable and testable.
+The original project targeted NeoForge 1.21.1 and directly integrated several addon internals. This 1.20.1 port deliberately uses Forge 47 APIs and a reduced, stable feature set. Addon-specific adapters, fluid/chemical icon rendering, multi-output billboards, the locator GUI, and EMI integration were removed to keep the forced backport buildable and testable.
 
 ## Requirements
 
 - Minecraft 1.20.1
 - Forge 47.4.20 or newer in the 47.x line
 - Applied Energistics 2 15.x
-- EMI is optional
 
 ## Automation
 

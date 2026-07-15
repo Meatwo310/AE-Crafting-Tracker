@@ -1,11 +1,10 @@
 name: Apply port update
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/forge-1.20.1-port-final
-    paths:
-      - '.port-update.ready'
+      - master
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: agent/forge-1.20.1-port-final
       - name: Apply archive
         run: |
           cat .port-update.part-* > "$RUNNER_TEMP/port-update.b64"
@@ -24,12 +23,10 @@ jobs:
           tar -xzf "$RUNNER_TEMP/port-update.tar.gz"
           rm -f .port-update.part-* .port-update.ready
           rm -f src/forge1201/java/org/chatterjay/craftingtracker/client/ClientTracker.java
-          rm -f .github/workflows/export-port-source.yml
-          rm -f .github/workflows/apply-port-update.yml
       - name: Commit port
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git commit -m 'feat: complete Forge 1.20.1 feature port'
-          git push origin HEAD:${{ github.ref_name }}
+          git push origin HEAD:agent/forge-1.20.1-port-final

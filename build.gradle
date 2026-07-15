@@ -19,7 +19,7 @@ repositories {
     maven { name = 'MinecraftForge'; url = 'https://maven.minecraftforge.net/' }
     maven { name = 'ParchmentMC'; url = 'https://maven.parchmentmc.org' }
     maven { name = 'TerraformersMC'; url = 'https://maven.terraformersmc.com/releases/' }
-    maven { name = 'AE2'; url = 'https://maven.appliedenergistics.org/releases/' }
+    maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
 }
 
 legacyForge {
@@ -77,9 +77,9 @@ dependencies {
     runtimeOnly "dev.emi:emi-forge:${emi_version}"
     ciRuntimeMods "dev.emi:emi-forge:${emi_version}"
 
-    compileOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
-    runtimeOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
-    ciRuntimeMods "org.appliedenergistics:appliedenergistics2:${ae2_version}"
+    compileOnly "maven.modrinth:ae2:${ae2_version}"
+    runtimeOnly "maven.modrinth:ae2:${ae2_version}"
+    ciRuntimeMods "maven.modrinth:ae2:${ae2_version}"
 
     annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
 }

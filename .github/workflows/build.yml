@@ -37,18 +37,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build
-        run: |
-          set -o pipefail
-          chmod +x gradlew
-          ./gradlew --no-daemon build 2>&1 | tee build.log
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
-          if-no-files-found: error
+        run: chmod +x gradlew && ./gradlew --no-daemon build
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
@@ -59,13 +48,19 @@ jobs:
             !build/libs/*-sources.jar
           if-no-files-found: error
 
-      - name: Stage runtime-test mod
+      - name: Stage runtime-test mods
         run: |
           mkdir -p run/mods
           find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' -exec cp {} run/mods/ \;
+          curl --fail --location --retry 3 \
+            --output run/mods/appliedenergistics2-forge-15.4.8.jar \
+            https://maven.appliedenergistics.org/releases/appeng/appliedenergistics2-forge/15.4.8/appliedenergistics2-forge-15.4.8.jar
+          curl --fail --location --retry 3 \
+            --output run/mods/guideme-20.1.7.jar \
+            https://maven.appliedenergistics.org/releases/org/appliedenergistics/guideme/20.1.7/guideme-20.1.7.jar
           ls -la run/mods
 
-      - name: Minecraft runtime smoke test
+      - name: Minecraft runtime smoke test with AE2
         uses: headlesshq/mc-runtime-test@4.5.0
         with:
           mc: '1.20.1'

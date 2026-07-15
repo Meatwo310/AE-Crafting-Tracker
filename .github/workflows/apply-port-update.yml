@@ -5,7 +5,7 @@ on:
     branches:
       - agent/forge-1.20.1-port-final
     paths:
-      - '.port-update.tar.gz.b64'
+      - '.port-update.ready'
 
 permissions:
   contents: write
@@ -19,9 +19,10 @@ jobs:
           ref: ${{ github.ref_name }}
       - name: Apply archive
         run: |
-          base64 -d .port-update.tar.gz.b64 > "$RUNNER_TEMP/port-update.tar.gz"
+          cat .port-update.part-* > "$RUNNER_TEMP/port-update.b64"
+          base64 -d "$RUNNER_TEMP/port-update.b64" > "$RUNNER_TEMP/port-update.tar.gz"
           tar -xzf "$RUNNER_TEMP/port-update.tar.gz"
-          rm -f .port-update.tar.gz.b64
+          rm -f .port-update.part-* .port-update.ready
           rm -f src/forge1201/java/org/chatterjay/craftingtracker/client/ClientTracker.java
           rm -f .github/workflows/export-port-source.yml
           rm -f .github/workflows/apply-port-update.yml

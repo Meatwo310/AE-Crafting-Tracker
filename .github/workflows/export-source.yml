@@ -6,6 +6,9 @@ on:
       - agent/forge-1.20.1-port
     paths:
       - '.github/workflows/export-source.yml'
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:

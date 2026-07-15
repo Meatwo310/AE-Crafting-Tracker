@@ -1,31 +1,28 @@
-# AE Crafting Tracker — Forge 1.20.1 rough port
+# AE Crafting Tracker — Forge 1.20.1
 
-This branch is an unofficial, personal-use-oriented port of Chatterjay's AE Crafting Tracker from NeoForge 1.21.1 to Minecraft 1.20.1 with Forge.
+An unofficial Forge 1.20.1 port of Chatterjay's AE Crafting Tracker.
 
-## What works
+## Features
 
-- Loads on Minecraft 1.20.1 / Forge 47.4.10+
-- Client-side scanning of loaded block entities near the player
-- Reflection-based detection of AE2 Pattern Providers, including providers reachable through AE2 container objects
-- Color-coded provider boxes:
-  - Green: provider reports busy
-  - Yellow: provider has remained busy for at least 5 seconds
-  - Red: provider has remained busy for at least 15 seconds
-- The mod can start without AE2, which keeps CI runtime smoke tests lightweight
+- Pattern Provider highlighting with active, stalled, and stuck states
+- Up to three output-item icons above highlighted providers
+- Best-effort matching against AE2 crafting requests
+- Network Locator item with nine persistent ghost filters
+- Sneak-right-click binding to an AE network
+- Network-wide item, pattern, interface, bus, and storage scanning
+- Distance labels and item icons for locator results
+- Runtime highlight toggle in the locator screen and AE2 crafting-status screen
+- Forge configuration screen and `/crafttracker` commands
+- Reflection-based compatibility with AE2, ExtendedAE, AdvancedAE, Applied Mekanistics, and similar addons
+- Optional operation without AE2, allowing lightweight runtime smoke tests
 
-## Deliberate limitations
+## Usage
 
-This is a forced compatibility port, not a feature-complete backport. The original 1.21.1 implementation remains under `src/main` for reference but is excluded from the 1.20.1 build.
-
-The following original features are not currently ported:
-
-- Network Locator item and GUI
-- Output-item billboards
-- Exact AE2 crafting-request matching
-- ExtendedAE / AdvancedAE / Mekanism-specific integrations
-- User-facing configuration screen
-
-Reflection is used so the project does not compile directly against one exact AE2 1.20.1 build. This improves startup compatibility but means future AE2 internals may require adjustments.
+1. Craft the Network Locator.
+2. Sneak-right-click an AE network block to bind it.
+3. Right-click in the air to open the filter screen.
+4. Place ghost filter items in the 3×3 grid.
+5. Use the Highlight button for runtime Pattern Provider tracking.
 
 ## Build
 
@@ -33,14 +30,12 @@ Reflection is used so the project does not compile directly against one exact AE
 ./gradlew build
 ```
 
-The distributable jar is written to `build/libs/`. Java 17 is required.
+Requires Java 17. The distributable jar is written to `build/libs/`.
 
-## Automation
+## Compatibility notes
 
-- `Build` compiles the mod, uploads the jar, and runs `headlesshq/mc-runtime-test` against Forge 1.20.1.
-- `Release` builds and attaches jars to a GitHub Release when a `v*` tag is pushed or when manually dispatched with a tag name.
-- Version bumping is intentionally manual.
+The port intentionally uses a reflection compatibility layer for AE2 and addon internals. Core startup and Minecraft runtime are tested in CI; exact behavior can vary with individual addon releases.
 
 ## License
 
-GNU LGPL 3.0. The original project and attribution remain under the same license.
+GNU LGPL 3.0.

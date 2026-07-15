@@ -1,21 +1,7 @@
-# Forge 1.20.1 rough-port notes
+# Forge 1.20.1 port notes
 
-This branch intentionally favors a buildable, loadable Forge 1.20.1 baseline over feature parity with the NeoForge 1.21.1 implementation.
+Version 0.1.0 restores the core 1.21.1 feature set on Forge 1.20.1.
 
-## Included
+The implementation avoids hard-linking to one AE2 build. Pattern Providers, crafting requests, grid nodes, parts, inventories, and addon hosts are discovered through a defensive reflection layer. Unsupported methods degrade to loaded-chunk scanning rather than preventing startup.
 
-- Forge 47.4.10 / Minecraft 1.20.1 / Java 17 build
-- Client-side loaded-block-entity scanning
-- Reflection-based AE2 Pattern Provider and busy-state detection
-- Green/yellow/red highlight boxes based on continuous busy duration
-- GitHub Actions build, artifact upload, mc-runtime-test smoke test, and GitHub Release workflow
-
-## Deferred
-
-- Network Locator item and screen
-- Output item billboards
-- Exact crafting CPU request matching
-- ExtendedAE, AdvancedAE, Mekanism and EMI integrations
-- Configuration UI
-
-The original 1.21.1 source remains under `src/main` but is excluded from the Forge 1.20.1 source set.
+EMI-specific drag callbacks are not linked directly; the locator ghost slots support normal carried-stack placement and clearing. Addon inventories and patterns are still scanned at runtime.

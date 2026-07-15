@@ -1,0 +1,25 @@
+name: Export port source
+
+on:
+  push:
+    branches:
+      - agent/forge-1.20.1-port-final
+    paths:
+      - '.github/workflows/export-port-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive repository
+        run: tar --exclude=.git -czf "$RUNNER_TEMP/ae-crafting-tracker-port-source.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ae-crafting-tracker-port-source
+          path: ${{ runner.temp }}/ae-crafting-tracker-port-source.tar.gz
+          if-no-files-found: error

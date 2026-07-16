@@ -18,6 +18,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -26,14 +27,13 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 
-import net.neoforged.neoforge.network.PacketDistributor;
-
 import org.chatterjay.crafting_tracker.api.CraftStatus;
 import org.chatterjay.crafting_tracker.config.CTConfig;
 import org.chatterjay.crafting_tracker.item.NetworkLocatorTool;
 import org.chatterjay.crafting_tracker.network.payloads.S2CCraftHighlightData;
 import org.chatterjay.crafting_tracker.network.payloads.S2CCraftHighlightData.HighlightEntry;
 import org.chatterjay.crafting_tracker.network.payloads.S2CLocatorHighlights;
+import org.chatterjay.crafting_tracker.server.CraftTrackerNetwork;
 import org.slf4j.Logger;
 
 import appeng.api.crafting.IPatternDetails;
@@ -50,12 +50,6 @@ import appeng.api.networking.crafting.ICraftingCPU;
 import appeng.api.networking.crafting.ICraftingService;
 import appeng.helpers.patternprovider.PatternProviderLogicHost;
 
-import com.glodblock.github.extendedae.common.tileentities.matrix.TileAssemblerMatrixPattern;
-
-import me.ramidzkh.mekae2.ae2.MekanismKey;
-
-import net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogicHost;
-
 public class CraftTracker {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int MAX_MISSED = 10;
@@ -69,66 +63,49 @@ public class CraftTracker {
      *  These players get highlights disabled regardless of config setting,
      *  until they press "Run" again or the config changes. */
     private static final Set<UUID> runtimeExplicitlyDisabled = new HashSet<>();
-    private static final Map<BlockPos, TrackerEntry> entries = new HashMap<>();
-    private static final Map<BlockPos, Boolean> prevProviderBusy = new HashMap<>();
+    private static final Map<ProviderKey, TrackerEntry> entries = new HashMap<>();
+    private static final Map<ProviderKey, Boolean> prevProviderBusy = new HashMap<>();
     /** Tracks which players had a locator in the most recent scan tick (for per-tick drop detection). */
     private static final Set<UUID> playersWithLocatorLastTick = new HashSet<>();
-    /** Tracks the last-known bound position of each player's locator, for network-switch detection. */
-    private static final Map<UUID, BlockPos> lastBoundPositions = new HashMap<>();
+    /** Tracks each locator's last binding so network and dimension changes clear stale highlights. */
+    private static final Map<UUID, LocatorBinding> lastBindings = new HashMap<>();
     private static int scanCounter;
     /** Independent counter for locator Phase 4 scan (increments every tick regardless of tracking state). */
     private static int locatorTickCounter;
 
     static final int TYPE_ITEM = 0;
     static final int TYPE_FLUID = 1;
-    static final int TYPE_OTHER = 2;
-    static final int TYPE_CHEMICAL = 3;
     private static final int MAX_OUTPUTS = 3;
 
     private record OutputItem(ResourceLocation id, int type) {}
-
-    // --- Type abstractions for PatternProviderLogicHost / TileAssemblerMatrixPattern ---
+    private record LocatorBinding(ResourceLocation dimension, BlockPos pos) {}
+    private record ProviderKey(ResourceKey<Level> dimension, BlockPos pos) {}
 
     private static boolean isPatternSource(BlockEntity be) {
-        return be instanceof PatternProviderLogicHost || be instanceof TileAssemblerMatrixPattern
-                || be instanceof AdvPatternProviderLogicHost;
+        return be instanceof PatternProviderLogicHost;
     }
 
     private static boolean isPatternBusy(BlockEntity be) {
         if (be instanceof PatternProviderLogicHost host) return host.getLogic().isBusy();
-        if (be instanceof TileAssemblerMatrixPattern matrix) return matrix.isBusy();
-        if (be instanceof AdvPatternProviderLogicHost host) return host.getLogic().isBusy();
         return false;
     }
 
     private static boolean isPatternLocked(BlockEntity be) {
         if (be instanceof PatternProviderLogicHost host)
             return host.getLogic().getCraftingLockedReason() != LockCraftingMode.NONE;
-        if (be instanceof AdvPatternProviderLogicHost host)
-            return host.getLogic().getCraftingLockedReason() != LockCraftingMode.NONE;
         return false;
     }
 
     private static List<IPatternDetails> getPatterns(BlockEntity be) {
         if (be instanceof PatternProviderLogicHost host) return host.getLogic().getAvailablePatterns();
-        if (be instanceof TileAssemblerMatrixPattern matrix) return matrix.getAvailablePatterns();
-        if (be instanceof AdvPatternProviderLogicHost host) return host.getLogic().getAvailablePatterns();
         return List.of();
     }
 
     @Nullable
     private static IGrid getGrid(BlockEntity be) {
-        if (be instanceof TileAssemblerMatrixPattern matrix) {
-            try { return matrix.getGrid(); } catch (Exception ignored) {}
-        }
-        if (be instanceof AdvPatternProviderLogicHost host) {
-            try { return host.getGrid(); } catch (Exception ignored) {}
-        }
         IGridNode node = getGridNode(be);
         return node != null ? node.getGrid() : null;
     }
-
-    // --- end type abstractions ---
 
     public static boolean isEnabledFor(UUID playerId) {
         if (runtimeActivePlayers.contains(playerId)) return true;
@@ -165,7 +142,9 @@ public class CraftTracker {
 
     public static int getRuntimeRemainingTicks(UUID playerId, long gameTime) {
         Long expiry = runtimeHighlightExpiry.get(playerId);
-        return expiry != null ? (int) Math.max(0, expiry - gameTime) : 0;
+        if (expiry == null) return 0;
+        long remaining = Math.max(0, expiry - gameTime);
+        return remaining >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
     }
 
     public static void onServerTick(MinecraftServer server) {
@@ -203,15 +182,21 @@ public class CraftTracker {
             currentLocatorPlayers.add(player.getUUID());
 
             // Check for bound position change (network switch detection)
-            if (!NetworkLocatorTool.isBound(locator)) continue;
+            if (!NetworkLocatorTool.isBound(locator)) {
+                lastBindings.remove(player.getUUID());
+                continue;
+            }
             BlockPos boundPos = NetworkLocatorTool.getBoundPos(locator);
-            if (boundPos != null) {
-                BlockPos lastPos = lastBoundPositions.get(player.getUUID());
-                if (lastPos != null && !lastPos.equals(boundPos)) {
-                    PacketDistributor.sendToPlayer(player, new S2CLocatorHighlights(Map.of(), 0));
-                    performLocatorScan(server, player, locator, boundPos, gameTime);
+            ResourceLocation boundDimension = NetworkLocatorTool.getBoundDimension(locator);
+            if (boundPos != null && boundDimension != null) {
+                LocatorBinding binding = new LocatorBinding(boundDimension, boundPos);
+                LocatorBinding previous = lastBindings.put(player.getUUID(), binding);
+                if (!binding.equals(previous)) {
+                    CraftTrackerNetwork.sendToPlayer(player, new S2CLocatorHighlights(Map.of(), 0));
+                    if (player.level().dimension().location().equals(boundDimension)) {
+                        performLocatorScan(player, locator, boundPos, gameTime);
+                    }
                 }
-                lastBoundPositions.put(player.getUUID(), boundPos);
             }
         }
 
@@ -221,10 +206,10 @@ public class CraftTracker {
                 ServerPlayer player = server.getPlayerList().getPlayer(uuid);
                 runtimeHighlightExpiry.remove(uuid);
                 runtimeActivePlayers.remove(uuid);
-                lastBoundPositions.remove(uuid);
+                lastBindings.remove(uuid);
                 if (player != null) {
-                    PacketDistributor.sendToPlayer(player, new S2CLocatorHighlights(Map.of(), 0));
-                    PacketDistributor.sendToPlayer(player, new S2CCraftHighlightData(List.of(), 0));
+                    CraftTrackerNetwork.sendToPlayer(player, new S2CLocatorHighlights(Map.of(), 0));
+                    CraftTrackerNetwork.sendToPlayer(player, new S2CCraftHighlightData(List.of(), 0));
                 } else {
                     LOGGER.warn("Player {} was in prevLoc set but is no longer online", uuid);
                 }
@@ -235,22 +220,28 @@ public class CraftTracker {
 
         // Phase 4: Locator network scan — every 40 ticks (independent of tracking state)
         if (locatorTickCounter % 40 == 0) {
-            int scanned = 0;
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 ItemStack locator = findLocator(player);
                 if (locator.isEmpty()) continue;
 
-                if (!NetworkLocatorTool.isBound(locator)) continue;
+                if (!NetworkLocatorTool.isBound(locator)) {
+                    CraftTrackerNetwork.sendToPlayer(player, new S2CLocatorHighlights(Map.of(), 0));
+                    continue;
+                }
 
                 ResourceLocation boundDim = NetworkLocatorTool.getBoundDimension(locator);
-                if (boundDim == null) continue;
-                if (!player.level().dimension().location().equals(boundDim)) continue;
+                if (boundDim == null || !player.level().dimension().location().equals(boundDim)) {
+                    CraftTrackerNetwork.sendToPlayer(player, new S2CLocatorHighlights(Map.of(), 0));
+                    continue;
+                }
 
                 BlockPos boundPos = NetworkLocatorTool.getBoundPos(locator);
-                if (boundPos == null) continue;
+                if (boundPos == null) {
+                    CraftTrackerNetwork.sendToPlayer(player, new S2CLocatorHighlights(Map.of(), 0));
+                    continue;
+                }
 
-                performLocatorScan(server, player, locator, boundPos, gameTime);
-                scanned++;
+                performLocatorScan(player, locator, boundPos, gameTime);
             }
         }
 
@@ -274,8 +265,8 @@ public class CraftTracker {
         boolean doScan = scanCounter % CTConfig.scanIntervalTicks == 0;
 
         if (doScan) {
-            Set<BlockPos> seen = new HashSet<>();
-            Set<BlockPos> seenProviders = new HashSet<>();
+            Set<ProviderKey> seen = new HashSet<>();
+            Set<ProviderKey> seenProviders = new HashSet<>();
 
             for (ServerPlayer player : trackingPlayers) {
                 ServerLevel level = player.serverLevel();
@@ -291,7 +282,7 @@ public class CraftTracker {
             prevProviderBusy.keySet().removeIf(k -> !seenProviders.contains(k));
 
             // Keep entries still in cooldown or stuck
-            for (Map.Entry<BlockPos, TrackerEntry> e : entries.entrySet()) {
+            for (Map.Entry<ProviderKey, TrackerEntry> e : entries.entrySet()) {
                 if (now < e.getValue().cooldownUntilMs || e.getValue().stuck) {
                     seen.add(e.getKey());
                 }
@@ -314,8 +305,9 @@ public class CraftTracker {
             BlockPos ppos = player.blockPosition();
             List<HighlightEntry> highlightEntries = new ArrayList<>();
 
-            for (Map.Entry<BlockPos, TrackerEntry> e : entries.entrySet()) {
-                BlockPos pos = e.getKey();
+            for (Map.Entry<ProviderKey, TrackerEntry> e : entries.entrySet()) {
+                if (!e.getKey().dimension().equals(level.dimension())) continue;
+                BlockPos pos = e.getKey().pos();
                 if (!pos.closerThan(ppos, radius)) continue;
                 if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) continue;
 
@@ -333,7 +325,7 @@ public class CraftTracker {
             }
 
             int runtimeRemaining = getRuntimeRemainingTicks(player.getUUID(), gameTime);
-            PacketDistributor.sendToPlayer(player, new S2CCraftHighlightData(highlightEntries, runtimeRemaining));
+            CraftTrackerNetwork.sendToPlayer(player, new S2CCraftHighlightData(highlightEntries, runtimeRemaining));
         }
     }
 
@@ -368,9 +360,10 @@ public class CraftTracker {
                         if (!pos.closerThan(ppos, quickRadius)) continue;
 
                         BlockPos immPos = pos.immutable();
+                        ProviderKey providerKey = new ProviderKey(level.dimension(), immPos);
 
                         // Skip already tracked entries — refreshEntries handles them per-tick
-                        if (entries.containsKey(immPos)) continue;
+                        if (entries.containsKey(providerKey)) continue;
 
                         boolean busy = isPatternBusy(be);
                         boolean locked = isPatternLocked(be);
@@ -378,11 +371,11 @@ public class CraftTracker {
                         if (busy || locked) {
                             TrackerEntry entry = new TrackerEntry(locked ? now : 0);
                             entry.stuck = locked;
-                            entry.outputs = getOutputInfo(be, null);
-                            entries.put(immPos, entry);
-                            prevProviderBusy.put(immPos, true);
+                            entry.outputs = getOutputInfo(be);
+                            entries.put(providerKey, entry);
+                            prevProviderBusy.put(providerKey, true);
                         } else {
-                            var info = getOutputInfo(be, null);
+                            var info = getOutputInfo(be);
                             if (info != null) {
                                 boolean hasInv = hasAdjacentInventory(level, immPos);
                                 if (hasInv) {
@@ -390,14 +383,14 @@ public class CraftTracker {
                                     entry.outputs = info;
                                     entry.tentative = true;
                                     entry.cooldownUntilMs = now + 1000;
-                                    entries.put(immPos, entry);
+                                    entries.put(providerKey, entry);
                                 } else {
                                     TrackerEntry entry = new TrackerEntry(now);
                                     entry.outputs = info;
                                     entry.stuck = true;
                                     entry.lockStartMs = now;
-                                    entries.put(immPos, entry);
-                                    prevProviderBusy.put(immPos, false);
+                                    entries.put(providerKey, entry);
+                                    prevProviderBusy.put(providerKey, false);
                                 }
                             }
                         }
@@ -409,13 +402,14 @@ public class CraftTracker {
 
     private static void refreshEntries(MinecraftServer server, long now) {
         for (var e : entries.entrySet()) {
-            BlockPos pos = e.getKey();
+            ProviderKey providerKey = e.getKey();
+            BlockPos pos = providerKey.pos();
             TrackerEntry entry = e.getValue();
 
-            for (ServerLevel level : server.getAllLevels()) {
-                if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) continue;
-                BlockEntity be = level.getBlockEntity(pos);
-                if (!isPatternSource(be)) continue;
+            ServerLevel level = server.getLevel(providerKey.dimension());
+            if (level == null || !level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) continue;
+            BlockEntity be = level.getBlockEntity(pos);
+            if (!isPatternSource(be)) continue;
 
                 boolean busy = isPatternBusy(be);
 
@@ -423,11 +417,11 @@ public class CraftTracker {
                     entry.cooldownUntilMs = 0;
                     entry.missedCount = 0;
                     entry.tentative = false;
-                    prevProviderBusy.put(pos, true);
+                    prevProviderBusy.put(providerKey, true);
 
                     boolean locked = isPatternLocked(be);
 
-                    var info = getOutputInfo(be, entry.outputs);
+                    var info = getOutputInfo(be);
                     if (info != null) {
                         entry.outputs = info;
                     }
@@ -452,7 +446,7 @@ public class CraftTracker {
 
                         if (cpuBusy) {
                             entry.missedCount = 0;
-                            var info = getOutputInfo(be, entry.outputs);
+                            var info = getOutputInfo(be);
                             if (info != null) {
                                 entry.outputs = info;
                             }
@@ -462,7 +456,7 @@ public class CraftTracker {
                         } else if (now < entry.cooldownUntilMs) {
                             entry.missedCount = 0;
                             // CPU may have started a new job even if isGridCpuBusy was false
-                            var info = getOutputInfo(be, entry.outputs);
+                            var info = getOutputInfo(be);
                             if (info != null) {
                                 entry.outputs = info;
                             }
@@ -471,7 +465,7 @@ public class CraftTracker {
                         }
                     } else if (now < entry.cooldownUntilMs) {
                         entry.missedCount = 0;
-                        var info = getOutputInfo(be, entry.outputs);
+                        var info = getOutputInfo(be);
                         if (info != null) {
                             entry.outputs = info;
                         }
@@ -479,15 +473,13 @@ public class CraftTracker {
                         entry.lockStartMs = 0;
                     }
                 }
-                break;
-            }
         }
     }
 
     private static void scanChunks(ServerLevel level, BlockPos ppos,
                                     int cx0, int cz0, int chunkRadius,
-                                    int radius, long now, Set<BlockPos> seen,
-                                    Set<BlockPos> seenProviders) {
+                                    int radius, long now, Set<ProviderKey> seen,
+                                    Set<ProviderKey> seenProviders) {
         for (int dx = -chunkRadius; dx <= chunkRadius; dx++) {
             for (int dz = -chunkRadius; dz <= chunkRadius; dz++) {
                 int cx = cx0 + dx;
@@ -502,20 +494,21 @@ public class CraftTracker {
                     if (!isPatternSource(be)) continue;
 
                     BlockPos immPos = pos.immutable();
-                    seenProviders.add(immPos);
+                    ProviderKey providerKey = new ProviderKey(level.dimension(), immPos);
+                    seenProviders.add(providerKey);
                     boolean busy = isPatternBusy(be);
                     boolean locked = isPatternLocked(be);
                     boolean active = busy || locked;
 
-                    boolean wasActive = prevProviderBusy.getOrDefault(immPos, false);
-                    prevProviderBusy.put(immPos, active);
+                    boolean wasActive = prevProviderBusy.getOrDefault(providerKey, false);
+                    prevProviderBusy.put(providerKey, active);
 
-                    TrackerEntry existing = entries.get(immPos);
+                    TrackerEntry existing = entries.get(providerKey);
 
                     if (active) {
-                        seen.add(immPos);
+                        seen.add(providerKey);
 
-                        var info = getOutputInfo(be, existing != null ? existing.outputs : null);
+                        var info = getOutputInfo(be);
 
                         if (existing == null) {
                             TrackerEntry entry = new TrackerEntry(locked ? now : 0);
@@ -524,7 +517,7 @@ public class CraftTracker {
                             }
                             entry.stuck = locked;
                             entry.outputs = info;
-                            entries.put(immPos, entry);
+                            entries.put(providerKey, entry);
                         } else {
                             existing.missedCount = 0;
                             existing.cooldownUntilMs = 0;
@@ -548,28 +541,28 @@ public class CraftTracker {
                             existing.busyStartMs = 0;
                             if (existing.stuck) {
                                 existing.missedCount = 0;
-                                seen.add(immPos);
+                                seen.add(providerKey);
                             } else if (wasActive) {
                                 existing.cooldownUntilMs = now + COOLDOWN_MS;
                                 existing.missedCount = 0;
-                                seen.add(immPos);
+                                seen.add(providerKey);
                             } else if (now < existing.cooldownUntilMs) {
                                 // Still in cooldown — refresh item in case CPU switched jobs
-                                var info = getOutputInfo(be, existing.outputs);
+                                var info = getOutputInfo(be);
                                 if (info != null) {
                                     existing.outputs = info;
                                 }
-                                seen.add(immPos);
+                                seen.add(providerKey);
                             }
                         } else if (wasActive) {
                             TrackerEntry entry = new TrackerEntry(0);
-                            entry.outputs = getOutputInfo(be, null);
+                            entry.outputs = getOutputInfo(be);
                             entry.cooldownUntilMs = now + COOLDOWN_MS;
-                            entries.put(immPos, entry);
-                            seen.add(immPos);
+                            entries.put(providerKey, entry);
+                            seen.add(providerKey);
                         } else {
                             // Idle provider, no existing entry — check if pattern matches a busy CPU or is requested
-                            var info = getOutputInfo(be, null);
+                            var info = getOutputInfo(be);
                             if (info != null) {
                                 TrackerEntry entry;
                                 if (hasAdjacentInventory(level, immPos)) {
@@ -582,8 +575,8 @@ public class CraftTracker {
                                     entry.stuck = true;
                                     entry.lockStartMs = now;
                                 }
-                                entries.put(immPos, entry);
-                                seen.add(immPos);
+                                entries.put(providerKey, entry);
+                                seen.add(providerKey);
                             }
                         }
                     }
@@ -610,10 +603,9 @@ public class CraftTracker {
         return ItemStack.EMPTY;
     }
 
-    private static void performLocatorScan(MinecraftServer server, ServerPlayer player, ItemStack locator, BlockPos boundPos, long gameTime) {
-        var reg = player.level().registryAccess();
-        List<ItemStack> filters = NetworkLocatorTool.getFilters(locator, reg);
-        if (filters.isEmpty()) return;
+    private static void performLocatorScan(ServerPlayer player, ItemStack locator, BlockPos boundPos, long gameTime) {
+        List<ItemStack> filters = NetworkLocatorTool.getFilters(locator);
+        if (filters.stream().allMatch(ItemStack::isEmpty)) return;
 
         SimpleContainer filterContainer = new SimpleContainer(9);
         for (int i = 0; i < Math.min(filters.size(), 9); i++) {
@@ -621,14 +613,13 @@ public class CraftTracker {
         }
 
         Map<BlockPos, List<S2CLocatorHighlights.LocatorHit>> results =
-                NetworkLocatorScanner.scan((ServerLevel) player.level(), boundPos, filterContainer, player);
+                NetworkLocatorScanner.scan((ServerLevel) player.level(), boundPos, filterContainer);
 
-        Long expiry = runtimeHighlightExpiry.get(player.getUUID());
-        int runtimeRemaining = expiry != null ? (int) Math.max(0, expiry - gameTime) : 0;
-        PacketDistributor.sendToPlayer(player, new S2CLocatorHighlights(results, runtimeRemaining));
+        int runtimeRemaining = getRuntimeRemainingTicks(player.getUUID(), gameTime);
+        CraftTrackerNetwork.sendToPlayer(player, new S2CLocatorHighlights(results, runtimeRemaining));
     }
 
-    private static @Nullable List<OutputItem> getOutputInfo(BlockEntity be, @Nullable List<OutputItem> prevOutputs) {
+    private static @Nullable List<OutputItem> getOutputInfo(BlockEntity be) {
         try {
             IGrid grid = getGrid(be);
             if (grid == null) return null;
@@ -656,7 +647,7 @@ public class CraftTracker {
             }
             return results.isEmpty() ? null : results;
         } catch (Exception e) {
-            LOGGER.info("getOutputInfo: exception at {}: {}", be.getBlockPos(), e.getMessage());
+            LOGGER.debug("Could not inspect Pattern Provider output at {}", be.getBlockPos(), e);
         }
         return null;
     }
@@ -671,8 +662,6 @@ public class CraftTracker {
             if (BuiltInRegistries.FLUID.containsKey(regKey)) {
                 return new OutputItem(regKey, TYPE_FLUID);
             }
-        } else if (key instanceof MekanismKey) {
-            return new OutputItem(regKey, TYPE_CHEMICAL);
         }
         return null;
     }
@@ -688,7 +677,7 @@ public class CraftTracker {
                 if (cpu.isBusy()) return true;
             }
         } catch (Exception e) {
-            LOGGER.info("isGridCpuBusy: exception: {}", e.getMessage());
+            LOGGER.debug("Could not inspect crafting CPUs", e);
         }
         return false;
     }
@@ -716,7 +705,7 @@ public class CraftTracker {
                 }
             }
         } catch (Exception e) {
-            LOGGER.info("isCpuCraftingOutput: exception: {}", e.getMessage());
+            LOGGER.debug("Could not inspect crafting CPU output", e);
         }
         return false;
     }

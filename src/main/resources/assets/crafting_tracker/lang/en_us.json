@@ -5,6 +5,7 @@
   "chat.crafting_tracker.status_disabled": "Crafting tracker: disabled",
 
   "item.crafting_tracker.network_locator": "Network Locator",
+  "itemGroup.crafting_tracker.tab": "AE Crafting Tracker",
   "msg.crafting_tracker.locator.bound": "Bound to AE network at %s",
   "msg.crafting_tracker.locator.bound_to": "Bound to AE network at %s",
   "msg.crafting_tracker.locator.not_bound": "Not bound to any AE network",

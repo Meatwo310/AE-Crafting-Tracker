@@ -1,0 +1,64 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - 'agent/**'
+    paths-ignore:
+      - '*.md'
+  pull_request:
+    paths-ignore:
+      - '*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: chmod +x gradlew && ./gradlew --no-daemon build stageRuntimeTestMods
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: ae-crafting-tracker-forge-1.20.1
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
+          if-no-files-found: error
+
+      - name: Stage runtime-test mods
+        run: |
+          mkdir -p run/mods
+          cp build/runtime-test/mods/*.jar run/mods/
+          find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' -exec cp {} run/mods/ \;
+
+      - name: Minecraft runtime smoke test
+        uses: headlesshq/mc-runtime-test@4.5.0
+        with:
+          mc: '1.20.1'
+          modloader: forge
+          regex: '.*forge.*'
+          mc-runtime-test: lexforge
+          java: '17'

@@ -1,130 +1,146 @@
 plugins {
+    id 'idea'
     id 'java-library'
     id 'maven-publish'
-    id 'idea'
-    id 'net.neoforged.moddev' version '2.0.141'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.91'
 }
 
-version = mod_version
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = "${mod_version}+mc${minecraft_version}"
 group = mod_group_id
-
-repositories {
-    mavenLocal()
-    maven {
-        name = "TerraformersMC"
-        url = "https://maven.terraformersmc.com/releases/"
-    }
-    maven {
-        name = "NeoForged"
-        url = "https://maven.neoforged.net/releases/"
-    }
-    maven {
-        name = "AE2 Maven"
-        url = "https://maven.appliedenergistics.org/releases/"
-    }
-}
 
 base {
     archivesName = mod_id
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
 
-neoForge {
-    version = project.neo_version
+legacyForge {
+    version = "${minecraft_version}-${forge_version}"
 
     parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
+        minecraftVersion = parchment_minecraft_version
+        mappingsVersion = parchment_mappings_version
     }
 
     runs {
         client {
             client()
-
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
 
         server {
             server()
             programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
 
         gameTestServer {
-            type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            type = 'gameTestServer'
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
 
         data {
             data()
-
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+            programArguments.addAll '--mod', mod_id, '--all', '--output',
+                    file('src/generated/resources').absolutePath, '--existing',
+                    file('src/main/resources').absolutePath
         }
 
         configureEach {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
-
-            logLevel = org.slf4j.event.Level.DEBUG
+            logLevel = org.slf4j.event.Level.INFO
         }
     }
 
     mods {
         "${mod_id}" {
-            sourceSet(sourceSets.main)
+            sourceSet sourceSets.main
         }
     }
 }
 
-sourceSets.main.resources { srcDir 'src/generated/resources' }
+sourceSets.main.resources.srcDir 'src/generated/resources'
 
-dependencies {
-    compileOnly "dev.emi:emi-neoforge:${emi_version}:api"
-    compileOnly "dev.emi:emi-neoforge:${emi_version}"
-    runtimeOnly "dev.emi:emi-neoforge:${emi_version}"
-
-    // AE2, EAEP, BD — all optional at runtime (compileOnly for compilation, runtimeOnly for dev)
-    compileOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
-    runtimeOnly "org.appliedenergistics:appliedenergistics2:${ae2_version}"
-    implementation files('libs/extendedae_plus-1.21.1-1.5.4.jar')
-    compileOnly files('../BeyondDimensions/beyonddimensions-1.21.1-neoforge-0.7.14.jar')
-    compileOnly files('run/mods/ars_nouveau-1.21.1-5.11.7.jar')
-    compileOnly files('run/mods/Mekanism-1.21.1-10.7.19.85.jar')
-    compileOnly files('run/mods/Applied-Mekanistics-1.6.3.jar')
-    compileOnly files('run/mods/ExtendedAE-1.21-2.2.32-neoforge.jar')
-    compileOnly files('run/mods/AdvancedAE-1.6.11-1.21.1.jar')
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+    runtimeTestMods {
+        canBeConsumed = false
+        canBeResolved = true
+    }
 }
 
-var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
-    var replaceProperties = [minecraft_version      : minecraft_version,
-                             minecraft_version_range: minecraft_version_range,
-                             neo_version            : neo_version,
-                             neo_version_range      : neo_version_range,
-                             loader_version_range   : loader_version_range,
-                             mod_id                 : mod_id,
-                             mod_name               : mod_name,
-                             mod_license            : mod_license,
-                             mod_version            : mod_version,
-                             mod_authors            : mod_authors,
-                             mod_description        : mod_description]
+obfuscation {
+    createRemappingConfiguration(configurations.localRuntime)
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'TerraformersMC'
+        url = 'https://maven.terraformersmc.com/releases/'
+    }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+}
+
+dependencies {
+    modImplementation "maven.modrinth:ae2:${ae2_maven_version}"
+    modLocalRuntime "maven.modrinth:guideme:${guideme_maven_version}"
+    runtimeTestMods "maven.modrinth:ae2:${ae2_maven_version}"
+    runtimeTestMods "maven.modrinth:guideme:${guideme_maven_version}"
+
+    modCompileOnly "dev.emi:emi-forge:${emi_version}:api"
+    modLocalRuntime "dev.emi:emi-forge:${emi_version}"
+}
+
+tasks.register('stageRuntimeTestMods', Sync) {
+    dependsOn tasks.named('reobfJar')
+    from configurations.runtimeTestMods
+    into layout.buildDirectory.dir('runtime-test/mods')
+}
+
+def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    def replaceProperties = [
+            minecraft_version       : minecraft_version,
+            minecraft_version_range : minecraft_version_range,
+            forge_version           : forge_version,
+            forge_version_range     : forge_version_range,
+            loader_version_range    : loader_version_range,
+            ae2_version_range       : ae2_version_range,
+            mod_id                  : mod_id,
+            mod_name                : mod_name,
+            mod_license             : mod_license,
+            mod_version             : mod_version,
+            mod_authors             : mod_authors,
+            mod_description         : mod_description
+    ]
     inputs.properties replaceProperties
     expand replaceProperties
-    from "src/main/templates"
-    into "build/generated/sources/modMetadata"
+    from 'src/main/templates'
+    into layout.buildDirectory.dir('generated/sources/modMetadata')
 }
 
 sourceSets.main.resources.srcDir generateModMetadata
-neoForge.ideSyncTask generateModMetadata
+legacyForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
 
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
             from components.java
-        }
-    }
-    repositories {
-        maven {
-            url "file://${project.projectDir}/repo"
         }
     }
 }

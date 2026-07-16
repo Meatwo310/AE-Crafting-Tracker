@@ -3,33 +3,21 @@ package org.chatterjay.crafting_tracker.network.payloads;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.annotation.Nullable;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-import org.chatterjay.crafting_tracker.Crafting_tracker;
-
-public record S2CCraftHighlightData(List<HighlightEntry> entries, int runtimeRemainingTicks) implements CustomPacketPayload {
-
-    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Crafting_tracker.MODID, "craft_highlight");
-    public static final CustomPacketPayload.Type<S2CCraftHighlightData> TYPE = new CustomPacketPayload.Type<>(ID);
-
-    public static final StreamCodec<FriendlyByteBuf, S2CCraftHighlightData> STREAM_CODEC =
-            StreamCodec.ofMember(S2CCraftHighlightData::write, S2CCraftHighlightData::new);
+public record S2CCraftHighlightData(List<HighlightEntry> entries, int runtimeRemainingTicks) {
 
     public record HighlightEntry(BlockPos pos, int statusOrdinal, List<OutputItem> outputs) {
         public record OutputItem(ResourceLocation itemId, int outputType) {}
     }
 
-    public S2CCraftHighlightData(FriendlyByteBuf buf) {
-        this(readEntries(buf), buf.readVarInt());
+    public static S2CCraftHighlightData decode(FriendlyByteBuf buffer) {
+        return new S2CCraftHighlightData(readEntries(buffer), buffer.readVarInt());
     }
 
-    public void write(FriendlyByteBuf buf) {
+    public void encode(FriendlyByteBuf buf) {
         buf.writeVarInt(entries.size());
         for (HighlightEntry entry : entries) {
             buf.writeBlockPos(entry.pos());
@@ -69,8 +57,4 @@ public record S2CCraftHighlightData(List<HighlightEntry> entries, int runtimeRem
         return list;
     }
 
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
-        return TYPE;
-    }
 }

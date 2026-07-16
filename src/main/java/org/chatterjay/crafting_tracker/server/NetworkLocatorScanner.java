@@ -6,11 +6,11 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
-import net.neoforged.neoforge.capabilities.Capabilities;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.items.IItemHandler;
 
 import org.chatterjay.crafting_tracker.network.payloads.S2CLocatorHighlights.LocatorHit;
 
@@ -24,15 +24,9 @@ import appeng.api.stacks.AEKey;
 import appeng.api.stacks.GenericStack;
 import appeng.helpers.patternprovider.PatternProviderLogicHost;
 import appeng.parts.AEBasePart;
-import appeng.parts.automation.ExportBusPart;
 import appeng.parts.automation.IOBusPart;
-import appeng.parts.automation.ImportBusPart;
 import appeng.parts.automation.StorageLevelEmitterPart;
 import appeng.parts.storagebus.StorageBusPart;
-
-import com.glodblock.github.extendedae.common.tileentities.matrix.TileAssemblerMatrixPattern;
-
-import net.pedroksl.advanced_ae.common.logic.AdvPatternProviderLogicHost;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -47,7 +41,6 @@ import java.util.Set;
 public class NetworkLocatorScanner {
 
     private static final int TYPE_ITEM = 0;
-    private static final int TYPE_CHEMICAL = 3;
     /** Max distinct icon slots per position */
     private static final int MAX_HITS_PER_POS = 3;
 
@@ -56,7 +49,7 @@ public class NetworkLocatorScanner {
      * whose inventory or patterns match items in the filter container.
      */
     public static Map<BlockPos, List<LocatorHit>> scan(ServerLevel level, BlockPos boundPos,
-                                                       Container filterContainer, Player player) {
+                                                       Container filterContainer) {
         Map<BlockPos, List<LocatorHit>> results = new HashMap<>();
 
         // Gather non-empty filter items
@@ -118,7 +111,13 @@ public class NetworkLocatorScanner {
             }
 
             if (pos != null && !foundItems.isEmpty()) {
-                results.put(pos.immutable(), foundItems);
+                List<LocatorHit> hitsAtPosition = results.computeIfAbsent(pos.immutable(), ignored -> new ArrayList<>());
+                for (LocatorHit hit : foundItems) {
+                    if (hitsAtPosition.size() >= MAX_HITS_PER_POS) break;
+                    if (!hitsAtPosition.contains(hit)) {
+                        hitsAtPosition.add(hit);
+                    }
+                }
             }
         }
 
@@ -138,7 +137,7 @@ public class NetworkLocatorScanner {
 
     private static void checkItemHandler(BlockEntity be, List<ItemStack> filters, List<LocatorHit> foundItems, Set<ResourceLocation> foundTypes) {
         if (be.getLevel() == null) return;
-        var cap = be.getLevel().getCapability(Capabilities.ItemHandler.BLOCK, be.getBlockPos(), null);
+        IItemHandler cap = be.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
         if (cap == null) return;
 
         for (int i = 0; i < cap.getSlots() && foundTypes.size() < MAX_HITS_PER_POS; i++) {
@@ -174,8 +173,6 @@ public class NetworkLocatorScanner {
 
     private static List<IPatternDetails> getPatterns(Object owner) {
         if (owner instanceof PatternProviderLogicHost host) return host.getLogic().getAvailablePatterns();
-        if (owner instanceof TileAssemblerMatrixPattern matrix) return matrix.getAvailablePatterns();
-        if (owner instanceof AdvPatternProviderLogicHost host) return host.getLogic().getAvailablePatterns();
         return List.of();
     }
 
@@ -219,7 +216,9 @@ public class NetworkLocatorScanner {
         BlockPos cablePos = bus.getHost().getBlockEntity().getBlockPos();
         BlockPos targetPos = cablePos.relative(side);
 
-        var cap = level.getCapability(Capabilities.ItemHandler.BLOCK, targetPos, side.getOpposite());
+        BlockEntity target = level.getBlockEntity(targetPos);
+        if (target == null) return;
+        IItemHandler cap = target.getCapability(ForgeCapabilities.ITEM_HANDLER, side.getOpposite()).orElse(null);
         if (cap == null) return;
 
         for (int i = 0; i < cap.getSlots() && foundTypes.size() < MAX_HITS_PER_POS; i++) {

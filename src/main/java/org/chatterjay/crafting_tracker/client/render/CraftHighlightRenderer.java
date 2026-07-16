@@ -24,21 +24,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.phys.Vec3;
 
-import net.minecraft.core.Registry;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fml.common.Mod;
 
-import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
-import net.neoforged.neoforge.fluids.FluidStack;
-
-import mekanism.api.MekanismAPI;
-import mekanism.api.chemical.Chemical;
-
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-
-import org.chatterjay.crafting_tracker.Crafting_tracker;
-import org.chatterjay.crafting_tracker.api.CraftStatus;
+import org.chatterjay.crafting_tracker.CraftingTracker;
 import org.chatterjay.crafting_tracker.client.ClientHighlightCache;
 import org.chatterjay.crafting_tracker.client.ClientLocatorCache;
 import org.chatterjay.crafting_tracker.config.CTConfig;
@@ -48,10 +41,9 @@ import org.joml.Matrix4f;
 
 import java.util.Map;
 
-@EventBusSubscriber(modid = Crafting_tracker.MODID, value = Dist.CLIENT)
+@Mod.EventBusSubscriber(modid = CraftingTracker.MOD_ID, value = Dist.CLIENT)
 public class CraftHighlightRenderer {
 
-    private static final int TYPE_CHEMICAL = 3;
     private static final int MAX_OUTPUTS = 3;
 
     /** Get the highlight color for a provider status ordinal (reads from config). */
@@ -102,7 +94,13 @@ public class CraftHighlightRenderer {
                     .setTextureState(new RenderStateShard.TextureStateShard(
                             TextureAtlas.LOCATION_BLOCKS, false, false))
                     .setDepthTestState(new RenderStateShard.DepthTestStateShard("always", 519))
-                    .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                    .setTransparencyState(new RenderStateShard.TransparencyStateShard(
+                            "translucent",
+                            () -> {
+                                RenderSystem.enableBlend();
+                                RenderSystem.defaultBlendFunc();
+                            },
+                            RenderSystem::disableBlend))
                     .createCompositeState(true));
 
     @SuppressWarnings("deprecation")
@@ -117,7 +115,13 @@ public class CraftHighlightRenderer {
                     .setTextureState(new RenderStateShard.TextureStateShard(
                             TextureAtlas.LOCATION_BLOCKS, false, false))
                     .setDepthTestState(new RenderStateShard.DepthTestStateShard("always", 519))
-                    .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                    .setTransparencyState(new RenderStateShard.TransparencyStateShard(
+                            "translucent",
+                            () -> {
+                                RenderSystem.enableBlend();
+                                RenderSystem.defaultBlendFunc();
+                            },
+                            RenderSystem::disableBlend))
                     .createCompositeState(true));
 
     @SubscribeEvent
@@ -183,8 +187,6 @@ public class CraftHighlightRenderer {
                     renderEntryItem(entry.pos(), out, poseStack, camera, bufferSource, startX + i * spacing, spriteSize);
                 } else if (outputType == 1) {
                     renderEntryFluid(entry.pos(), out, poseStack, camera, bufferSource, startX + i * spacing, spriteSize);
-                } else if (outputType == TYPE_CHEMICAL) {
-                    renderEntryChemical(entry.pos(), out, poseStack, camera, bufferSource, mc, startX + i * spacing, spriteSize);
                 }
             }
         }
@@ -205,8 +207,6 @@ public class CraftHighlightRenderer {
 
                 if (outputType == 0) {
                     renderLocatorItem(finalPos, hit, poseStack, camera, bufferSource, startX + i * spacing, spriteSize);
-                } else if (outputType == TYPE_CHEMICAL) {
-                    renderLocatorChemical(finalPos, hit, poseStack, camera, bufferSource, mc, startX + i * spacing, spriteSize);
                 }
             }
         }
@@ -275,18 +275,18 @@ public class CraftHighlightRenderer {
                               float x1, float y1, float z1, float x2, float y2, float z2,
                               float x3, float y3, float z3, float x4, float y4, float z4,
                               int r, int g, int b, int a) {
-        consumer.addVertex(pose, x1, y1, z1).setColor(r, g, b, a);
-        consumer.addVertex(pose, x2, y2, z2).setColor(r, g, b, a);
-        consumer.addVertex(pose, x3, y3, z3).setColor(r, g, b, a);
-        consumer.addVertex(pose, x4, y4, z4).setColor(r, g, b, a);
+        consumer.vertex(pose, x1, y1, z1).color(r, g, b, a).endVertex();
+        consumer.vertex(pose, x2, y2, z2).color(r, g, b, a).endVertex();
+        consumer.vertex(pose, x3, y3, z3).color(r, g, b, a).endVertex();
+        consumer.vertex(pose, x4, y4, z4).color(r, g, b, a).endVertex();
     }
 
     private static void line(VertexConsumer consumer, Matrix4f pose, PoseStack.Pose poseEntry,
                               float x1, float y1, float z1,
                               float x2, float y2, float z2,
                               float r, float g, float b, float a) {
-        consumer.addVertex(pose, x1, y1, z1).setColor(r, g, b, a).setNormal(poseEntry, 0f, 1f, 0f);
-        consumer.addVertex(pose, x2, y2, z2).setColor(r, g, b, a).setNormal(poseEntry, 0f, 1f, 0f);
+        consumer.vertex(pose, x1, y1, z1).color(r, g, b, a).normal(poseEntry.normal(), 0f, 1f, 0f).endVertex();
+        consumer.vertex(pose, x2, y2, z2).color(r, g, b, a).normal(poseEntry.normal(), 0f, 1f, 0f).endVertex();
     }
 
     /**
@@ -300,9 +300,9 @@ public class CraftHighlightRenderer {
      * Some ExtendedAE textures use _base suffix (e.g. storage buses).
      */
     private static TextureAtlasSprite getDisplaySprite(ResourceLocation itemId, BakedModel model) {
-        // Only applies to AE2-compatible mods with composite part models
+        // AE2 part items use a composite cable + part model.
         String ns = itemId.getNamespace();
-        if (!ns.equals("ae2") && !ns.equals("extendedae") && !ns.equals("advanced_ae") && !ns.equals("appmek")) {
+        if (!ns.equals("ae2")) {
             return model.getParticleIcon();
         }
         Minecraft mc = Minecraft.getInstance();
@@ -355,21 +355,6 @@ public class CraftHighlightRenderer {
         renderTintedSprite(consumer, poseStack, pos, camera, offsetX, size, sprite, tint);
     }
 
-    private static void renderEntryChemical(BlockPos pos, HighlightEntry.OutputItem out,
-                                             PoseStack poseStack, Camera camera,
-                                             MultiBufferSource bufferSource, Minecraft mc,
-                                             float offsetX, float size) {
-        Registry<Chemical> chemicalRegistry = mc.level.registryAccess().registry(MekanismAPI.CHEMICAL_REGISTRY_NAME).orElse(null);
-        if (chemicalRegistry == null) return;
-        Chemical chemical = chemicalRegistry.get(out.itemId());
-        if (chemical == null) return;
-        ResourceLocation icon = chemical.getIcon();
-        if (icon == null) return;
-        TextureAtlasSprite sprite = mc.getTextureAtlas(TextureAtlas.LOCATION_BLOCKS).apply(icon);
-        VertexConsumer consumer = bufferSource.getBuffer(TINTED_SPRITE_NO_DEPTH);
-        renderTintedSprite(consumer, poseStack, pos, camera, offsetX, size, sprite, chemical.getTint());
-    }
-
     // --- Locator-specific sprite helpers ---
 
     private static void renderLocatorItem(BlockPos pos, LocatorHit hit,
@@ -385,22 +370,6 @@ public class CraftHighlightRenderer {
         renderSprite(consumer, poseStack, pos, camera, offsetX, size, sprite);
     }
 
-    private static void renderLocatorChemical(BlockPos pos, LocatorHit hit,
-                                               PoseStack poseStack, Camera camera,
-                                               MultiBufferSource bufferSource, Minecraft mc,
-                                               float offsetX, float size) {
-        if (mc.level == null) return;
-        Registry<Chemical> chemicalRegistry = mc.level.registryAccess().registry(MekanismAPI.CHEMICAL_REGISTRY_NAME).orElse(null);
-        if (chemicalRegistry == null) return;
-        Chemical chemical = chemicalRegistry.get(hit.itemId());
-        if (chemical == null) return;
-        ResourceLocation icon = chemical.getIcon();
-        if (icon == null) return;
-        TextureAtlasSprite sprite = mc.getTextureAtlas(TextureAtlas.LOCATION_BLOCKS).apply(icon);
-        VertexConsumer consumer = bufferSource.getBuffer(TINTED_SPRITE_NO_DEPTH);
-        renderTintedSprite(consumer, poseStack, pos, camera, offsetX, size, sprite, chemical.getTint());
-    }
-
     private static void renderSprite(VertexConsumer consumer, PoseStack poseStack,
                                       BlockPos pos, Camera camera,
                                       float offsetX, float size,
@@ -414,10 +383,10 @@ public class CraftHighlightRenderer {
         poseStack.translate(offsetX, 0, 0);
 
         Matrix4f matrix = poseStack.last().pose();
-        consumer.addVertex(matrix, -size, -size, 0).setUv(u0, v1);
-        consumer.addVertex(matrix, +size, -size, 0).setUv(u1, v1);
-        consumer.addVertex(matrix, +size, +size, 0).setUv(u1, v0);
-        consumer.addVertex(matrix, -size, +size, 0).setUv(u0, v0);
+        consumer.vertex(matrix, -size, -size, 0).uv(u0, v1).endVertex();
+        consumer.vertex(matrix, +size, -size, 0).uv(u1, v1).endVertex();
+        consumer.vertex(matrix, +size, +size, 0).uv(u1, v0).endVertex();
+        consumer.vertex(matrix, -size, +size, 0).uv(u0, v0).endVertex();
 
         poseStack.popPose();
     }
@@ -440,10 +409,10 @@ public class CraftHighlightRenderer {
         poseStack.translate(offsetX, 0, 0);
 
         Matrix4f matrix = poseStack.last().pose();
-        consumer.addVertex(matrix, -size, -size, 0).setUv(u0, v1).setColor(r, g, b, a);
-        consumer.addVertex(matrix, +size, -size, 0).setUv(u1, v1).setColor(r, g, b, a);
-        consumer.addVertex(matrix, +size, +size, 0).setUv(u1, v0).setColor(r, g, b, a);
-        consumer.addVertex(matrix, -size, +size, 0).setUv(u0, v0).setColor(r, g, b, a);
+        consumer.vertex(matrix, -size, -size, 0).uv(u0, v1).color(r, g, b, a).endVertex();
+        consumer.vertex(matrix, +size, -size, 0).uv(u1, v1).color(r, g, b, a).endVertex();
+        consumer.vertex(matrix, +size, +size, 0).uv(u1, v0).color(r, g, b, a).endVertex();
+        consumer.vertex(matrix, -size, +size, 0).uv(u0, v0).color(r, g, b, a).endVertex();
 
         poseStack.popPose();
     }

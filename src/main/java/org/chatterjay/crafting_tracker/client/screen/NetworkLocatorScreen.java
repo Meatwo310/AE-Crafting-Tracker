@@ -1,6 +1,5 @@
 package org.chatterjay.crafting_tracker.client.screen;
 
-import com.mojang.logging.LogUtils;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -9,19 +8,15 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
-import org.chatterjay.crafting_tracker.Crafting_tracker;
 import org.chatterjay.crafting_tracker.item.NetworkLocatorMenu;
 import org.chatterjay.crafting_tracker.network.payloads.C2SUpdateFilterSlot;
-import org.slf4j.Logger;
-
-import net.neoforged.neoforge.network.PacketDistributor;
+import org.chatterjay.crafting_tracker.server.CraftTrackerNetwork;
 
 public class NetworkLocatorScreen extends AbstractContainerScreen<NetworkLocatorMenu> {
 
-    private static final Logger LOGGER = LogUtils.getLogger();
     // AE2's toolbox texture — same background used by Network Tool
     private static final ResourceLocation BACKGROUND =
-            ResourceLocation.parse("ae2:textures/guis/toolbox.png");
+            ResourceLocation.fromNamespaceAndPath("ae2", "textures/guis/toolbox.png");
 
     private static final int WINDOW_W = 176;
     private static final int WINDOW_H = 168;
@@ -52,17 +47,16 @@ public class NetworkLocatorScreen extends AbstractContainerScreen<NetworkLocator
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
         Slot slot = getSlotUnderMouse();
         if (slot != null && isGhostSlot(slot)) {
             if (scrollY > 0) {
-                LOGGER.info("[LocatorScreen] Scroll-wheel clear of slot {}", slot.index);
                 slot.set(ItemStack.EMPTY);
-                PacketDistributor.sendToServer(new C2SUpdateFilterSlot(slot.index, ItemStack.EMPTY));
+                CraftTrackerNetwork.sendToServer(new C2SUpdateFilterSlot(slot.index, ItemStack.EMPTY));
             }
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        return super.mouseScrolled(mouseX, mouseY, scrollY);
     }
 
     private boolean isGhostSlot(Slot slot) {

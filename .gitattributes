@@ -1,0 +1,5 @@
+# Generated data always uses LF.
+src/generated/**/.cache/cache text eol=lf
+src/generated/**/*.json text eol=lf
+gradlew text eol=lf
+gradlew.bat text eol=lf

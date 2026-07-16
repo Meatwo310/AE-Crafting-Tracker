@@ -5,6 +5,7 @@
   "chat.crafting_tracker.status_disabled": "合成追踪：已禁用",
 
   "item.crafting_tracker.network_locator": "网络定位器",
+  "itemGroup.crafting_tracker.tab": "AE 合成追踪器",
   "msg.crafting_tracker.locator.bound": "已绑定至 %s 处的 AE 网络",
   "msg.crafting_tracker.locator.bound_to": "已绑定至 %s 处的 AE 网络",
   "msg.crafting_tracker.locator.not_bound": "未绑定任何 AE 网络",

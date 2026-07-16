@@ -2,22 +2,20 @@
 
 [**中文版**](CHANGELOG_ZH.md)
 
-## [0.1.0] - 2025-07-01
-
-### Added
-- Network Locator item: scan AE networks to find blocks matching filter items
-- Locator GUI with filter slots (9 slots) and EMI drag-drop support
-- Runtime highlight mode with toggle button in locator screen
-- Crafting recipe for Network Locator
-- `/crafttracker` command (toggle/on/off/status)
-
-### Fixed
-- Drop detection: highlights now clear immediately when locator is dropped
-- Network switch: old highlights clear and new network scans instantly
-- Locator scans work independently of the general highlight config toggle
-- Drop no longer permanently disables player highlights
-- Recipe type corrected from `minecraft:shaped` to `minecraft:crafting_shaped`
+## Unreleased
 
 ### Changed
-- Default highlight config changed to `false`
-- Removed debug logging for production use
+
+- Replaced the previous ForgeGradle project with NeoForged's Forge 1.20.1 ModDevGradle Legacy MDK structure.
+- Ported the upstream NeoForge implementation into the standard `src/main` source set.
+- Made AE2 a declared, required dependency and pinned the Forge AE2 artifact unambiguously.
+- Replaced NeoForge payloads, registries, events, capabilities, item data components, and rendering calls with Forge 1.20.1 APIs.
+- Replaced addon reflection and guessed compatibility with direct AE2 APIs.
+- Updated build and release automation for the rewritten Forge artifact.
+
+### Fixed
+
+- Preserved all nine Network Locator filter positions, including empty gaps, in item NBT.
+- Corrected the Minecraft 1.20.1 recipe directory and result schema.
+- Added AE2's GuideME dependency to development and runtime smoke-test environments.
+- Prevented infinite runtime highlighting from overflowing the remaining-tick packet field.

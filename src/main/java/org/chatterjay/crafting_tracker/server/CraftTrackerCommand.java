@@ -6,13 +6,10 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.List;
 import java.util.UUID;
 
-import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import org.chatterjay.crafting_tracker.network.payloads.S2CCraftHighlightData;
 
@@ -55,7 +52,7 @@ public class CraftTrackerCommand {
     private static int executeOff(CommandSourceStack source) throws CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         CraftTracker.setEnabledFor(player.getUUID(), false);
-        PacketDistributor.sendToPlayer(player, new S2CCraftHighlightData(List.of(), 0));
+        CraftTrackerNetwork.sendToPlayer(player, new S2CCraftHighlightData(List.of(), 0));
         player.sendSystemMessage(Component.translatable("chat.crafting_tracker.disabled"));
         return 1;
     }

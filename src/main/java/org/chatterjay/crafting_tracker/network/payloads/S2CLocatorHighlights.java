@@ -2,32 +2,22 @@ package org.chatterjay.crafting_tracker.network.payloads;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-
-import org.chatterjay.crafting_tracker.Crafting_tracker;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public record S2CLocatorHighlights(Map<BlockPos, List<LocatorHit>> hits, int runtimeRemainingTicks) implements CustomPacketPayload {
-
-    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(Crafting_tracker.MODID, "locator_highlights");
-    public static final CustomPacketPayload.Type<S2CLocatorHighlights> TYPE = new CustomPacketPayload.Type<>(ID);
-
-    public static final StreamCodec<FriendlyByteBuf, S2CLocatorHighlights> STREAM_CODEC =
-            StreamCodec.ofMember(S2CLocatorHighlights::write, S2CLocatorHighlights::new);
+public record S2CLocatorHighlights(Map<BlockPos, List<LocatorHit>> hits, int runtimeRemainingTicks) {
 
     public record LocatorHit(ResourceLocation itemId, int outputType) {}
 
-    public S2CLocatorHighlights(FriendlyByteBuf buf) {
-        this(readHits(buf), buf.readVarInt());
+    public static S2CLocatorHighlights decode(FriendlyByteBuf buffer) {
+        return new S2CLocatorHighlights(readHits(buffer), buffer.readVarInt());
     }
 
-    public void write(FriendlyByteBuf buf) {
+    public void encode(FriendlyByteBuf buf) {
         buf.writeVarInt(hits.size());
         for (var entry : hits.entrySet()) {
             buf.writeBlockPos(entry.getKey());
@@ -58,8 +48,4 @@ public record S2CLocatorHighlights(Map<BlockPos, List<LocatorHit>> hits, int run
         return map;
     }
 
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
-        return TYPE;
-    }
 }
